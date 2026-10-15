@@ -1,15 +1,14 @@
-sessions = 0
-total_minutes = 0
+import time
 
-print("Choose one ")
+for i in range(2400, 10, -1):
+    time.sleep(1)
+    remain_min=i//60 
+    remain_sec=i%60
+    print(f"{remain_min}:{remain_sec:02d}")
+   
+  
 
-while True:
-    choice=input("Type 'stop' to end study session and 'continue' to end session.")
-    if choice == "stop":
-        break
-    elif choice == "continue":
-        sessions +=1 
-        total_minutes+=40
-        print("Sessions:", sessions)
-        print("Total minutes:", total_minutes)
+
+
+
 
