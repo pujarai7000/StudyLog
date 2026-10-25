@@ -1,42 +1,56 @@
 import time
 import threading
 import msvcrt
-from datetime import date
-
+from datetime import date, timedelta
 
 today = date.today()
+week_start = today - timedelta(days=6)
 count=0
 total_minutes=0
+weekly_seconds=0
 
 subject_totals = {}
+daily_totals = {}
 
+try:
+    with open("study_history.txt", "r") as file:
+        history = file.read()
 
-with open("study_history.txt", "r") as file:
-    history = file.read()
-
+except FileNotFoundError:
+    history = ""
 sessions = history.splitlines()
+
+
 
 for item in sessions:
     parts = item.split(",")
 
     if len(parts) == 3:
-        session_date = parts[0]
-        studied_subject=parts[1]
+        session_date = date.fromisoformat(parts[0])
+        studied_subject = parts[1]
         studied_seconds = int(parts[2])
 
-        if session_date == str(today):
-          total_minutes += studied_seconds / 60
-          if studied_subject not in subject_totals:
-             subject_totals[studied_subject] = 0
+        # Weekly study tracking
+        if week_start <= session_date <= today:
+            weekly_seconds += studied_seconds
 
-          subject_totals[studied_subject] += studied_seconds
+            if session_date not in daily_totals:
+                daily_totals[session_date] = 0
 
+            daily_totals[session_date] += studied_seconds
 
-session_minute = 15/ 60
-session_seconds = int(session_minute * 60)
+        # Today's study tracking
+        if session_date == today:
+            total_minutes += studied_seconds / 60
+
+            if studied_subject not in subject_totals:
+                subject_totals[studied_subject] = 0
+
+            subject_totals[studied_subject] += studied_seconds
 
 pause_event=threading.Event()
 stop_event = threading.Event()
+
 session_result = {"studied_seconds": 0}
 
 def countdown():
@@ -73,7 +87,22 @@ def countdown():
 
 
 while True:
-    subject = input("What are you studying? ")
+    
+    subject = input("What are you studying? ").strip().lower()
+    while True:
+        try:
+           session_minute = int(input("How many minutes do you want to study? "))
+
+           if session_minute <= 0:
+            print("Please enter a number greater than 0.")
+            continue
+
+           break
+
+        except ValueError:
+                print("Enter a valid number.")
+    session_seconds = session_minute * 60
+
     pause_event.clear()
     stop_event.clear()
     timer_thread = threading.Thread(target=countdown)
@@ -102,6 +131,11 @@ while True:
     if not stop_event.is_set():
        count += 1
     total_minutes += session_result["studied_seconds"] / 60
+    weekly_seconds += session_result["studied_seconds"]
+    if today not in daily_totals:
+       daily_totals[today] = 0
+
+    daily_totals[today] += session_result["studied_seconds"]
     if subject not in subject_totals:
        subject_totals[subject] = 0
 
@@ -128,9 +162,27 @@ while True:
 
     print("-------------------------")
     print(f"Total: {minutes} minutes {seconds} seconds")
+    weekly_minutes = weekly_seconds // 60
+    weekly_remaining_seconds = weekly_seconds % 60
 
-    decision = input("Do you want another study session? (yes/no): ")
+    print("-------------------------")
+    print("Last 7 Days Study Summary:")
+   
+     
+
     
+    for i in range(7):
+        day = week_start + timedelta(days=i)
+        seconds_studied = daily_totals.get(day, 0)
 
+        minutes = seconds_studied // 60
+        seconds = seconds_studied % 60
+
+        print(f"{day}: {minutes} minutes {seconds} seconds")
+
+    print("-------------------------")
+    print(f"Total: {weekly_minutes} minutes {weekly_remaining_seconds} seconds")
+    decision = input("Do you want another study session? (yes/no): ")
     if decision.lower() == "no":
         break
+   
