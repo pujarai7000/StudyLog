@@ -15,7 +15,17 @@ console.log(startButton);
 // Timer variables
 let secondsRemaining = 0;
 let timer = null;
-let completedSessions = 0;
+
+
+let today = new Date();
+
+let dateKey = today.getFullYear() + "-" +
+    String(today.getMonth() + 1).padStart(2, "0") + "-" +
+    String(today.getDate()).padStart(2, "0");
+let storageKey = "sessions-" + dateKey;
+let completedSessions = Number(localStorage.getItem(storageKey)) || 0;
+let studyHistory = [];
+console.log("Today's date:", dateKey);
 
 // START BUTTON
 startButton.addEventListener("click", function() {
@@ -53,9 +63,21 @@ startButton.addEventListener("click", function() {
             timer = null;
 
             completedSessions++;
+            localStorage.setItem(storageKey, completedSessions);
             console.log("Completed sessions:", completedSessions);
 
+            let studySession = {
+                subject: subject,
+                duration: Number(durationInput.value),
+                date: dateKey
+   };
+
+console.log("Session details:", studySession);
+
             console.log("Study session completed!");
+            studyHistory.push(studySession);
+
+            console.log("Study history:", studyHistory);
         }
 
     }, 1000);
