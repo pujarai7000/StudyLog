@@ -7,8 +7,10 @@ let startButton = document.getElementById("startBtn");
 let timerDisplay = document.getElementById("timerDisplay");
 let pauseButton = document.getElementById("pauseBtn");
 let resetButton = document.getElementById("resetBtn");
+let endButton = document.getElementById("endBtn");
 let durationInput = document.getElementById("durationInput");
 let subjectInput = document.getElementById("subjectInput");
+let historyList = document.getElementById("historyList");
 
 console.log(startButton);
 
@@ -24,7 +26,18 @@ let dateKey = today.getFullYear() + "-" +
     String(today.getDate()).padStart(2, "0");
 let storageKey = "sessions-" + dateKey;
 let completedSessions = Number(localStorage.getItem(storageKey)) || 0;
-let studyHistory = [];
+
+let studyHistory = JSON.parse(localStorage.getItem("studyHistory")) || [];
+
+studyHistory.forEach(function(session) {
+
+    let listItem = document.createElement("li");
+
+    listItem.textContent = session.subject + " - " + session.duration + " minutes";
+
+    historyList.appendChild(listItem);
+
+});
 console.log("Today's date:", dateKey);
 
 // START BUTTON
@@ -75,9 +88,16 @@ startButton.addEventListener("click", function() {
 console.log("Session details:", studySession);
 
             console.log("Study session completed!");
+
+           
+
             studyHistory.push(studySession);
 
             console.log("Study history:", studyHistory);
+
+// Save study history permanently
+            localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+          
         }
 
     }, 1000);
@@ -112,4 +132,17 @@ durationInput.addEventListener("change", function() {
 
     timerDisplay.textContent =
         String(minutes).padStart(2, "0") + ":00";
+});
+
+
+endButton.addEventListener("click", function() {
+    clearInterval(timer);
+    timer = null;
+
+    let plannedSeconds = Number(durationInput.value) * 60;
+    let studiedSeconds= plannedSeconds - secondsRemaining;
+
+    console.log("Actual study time in seconds:", studiedSeconds);
+
+    console.log("Study session ended!");
 });
