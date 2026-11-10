@@ -17,6 +17,8 @@ console.log(startButton);
 // Timer variables
 let secondsRemaining = 0;
 let timer = null;
+let sessionStarted = false;
+
 
 
 let today = new Date();
@@ -58,6 +60,7 @@ startButton.addEventListener("click", function() {
     if (secondsRemaining <= 0) {
         secondsRemaining = Number(durationInput.value) * 60;
     }
+    sessionStarted = true;
 
     timer = setInterval(function() {
         secondsRemaining--;
@@ -74,6 +77,7 @@ startButton.addEventListener("click", function() {
         if (secondsRemaining <= 0) {
             clearInterval(timer);
             timer = null;
+            sessionStarted = false;
 
             completedSessions++;
             localStorage.setItem(storageKey, completedSessions);
@@ -113,6 +117,26 @@ pauseButton.addEventListener("click", function() {
 resetButton.addEventListener("click", function() {
     clearInterval(timer);
     timer = null;
+    
+    let plannedSeconds = Number(durationInput.value) * 60;
+    let studiedSeconds = plannedSeconds - secondsRemaining;
+    let shouldSave = sessionStarted && studiedSeconds > 0;
+
+    sessionStarted = false;
+    if (shouldSave) {
+    console.log("Partial study time:", studiedSeconds);
+
+    let partialSession = {
+        subject: subjectInput.value,
+        duration: studiedSeconds / 60,
+        date: dateKey,
+        status: "Partial"
+    };
+
+    console.log("Partial session:", partialSession);
+    studyHistory.push(partialSession);
+}
+    
 
     secondsRemaining = Number(durationInput.value) * 60;
 
@@ -136,13 +160,21 @@ durationInput.addEventListener("change", function() {
 
 
 endButton.addEventListener("click", function() {
+    
+if (sessionStarted === false) {
+    return;
+}
+
     clearInterval(timer);
     timer = null;
+    sessionStarted = false;
 
     let plannedSeconds = Number(durationInput.value) * 60;
     let studiedSeconds= plannedSeconds - secondsRemaining;
 
     console.log("Actual study time in seconds:", studiedSeconds);
+
+    secondsRemaining = 0;
 
     console.log("Study session ended!");
 });
