@@ -104,8 +104,4 @@ The original Python command-line tracker is available, and development is curren
 
 The current priority is improving timer functionality, managing study history, and strengthening JavaScript fundamentals before introducing frontend frameworks and backend technologies.
 
-## Development Approach
 
-StudyLog is an ongoing personal learning project developed incrementally to practice programming fundamentals, problem-solving, debugging, and software development.
-
-The goal is to gradually transform the application into a practical full-stack study-tracking tool.
