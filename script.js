@@ -30,16 +30,24 @@ let storageKey = "sessions-" + dateKey;
 let completedSessions = Number(localStorage.getItem(storageKey)) || 0;
 
 let studyHistory = JSON.parse(localStorage.getItem("studyHistory")) || [];
-
-studyHistory.forEach(function(session) {
-
+function displaySession(session) {
     let listItem = document.createElement("li");
 
-    listItem.textContent = session.subject + " - " + session.duration + " minutes";
+    listItem.textContent = session.subject + " - " +
+        session.duration + " minutes - " +
+        (session.status || "Completed");
 
     historyList.appendChild(listItem);
+    
+   
+}
 
-});
+// Display previously saved sessions
+studyHistory.forEach(function(session) {
+    displaySession(session);
+})
+
+
 console.log("Today's date:", dateKey);
 
 // START BUTTON
@@ -81,6 +89,7 @@ startButton.addEventListener("click", function() {
 
             completedSessions++;
             localStorage.setItem(storageKey, completedSessions);
+      
             console.log("Completed sessions:", completedSessions);
 
             let studySession = {
@@ -101,7 +110,7 @@ console.log("Session details:", studySession);
 
 // Save study history permanently
             localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
-          
+            displaySession(studySession);
         }
 
     }, 1000);
@@ -128,13 +137,19 @@ resetButton.addEventListener("click", function() {
 
     let partialSession = {
         subject: subjectInput.value,
-        duration: studiedSeconds / 60,
+        
+        duration: Number((studiedSeconds / 60).toFixed(2)),
         date: dateKey,
         status: "Partial"
     };
 
     console.log("Partial session:", partialSession);
     studyHistory.push(partialSession);
+
+    localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+
+    displaySession(partialSession);
+
 }
     
 
@@ -150,6 +165,7 @@ resetButton.addEventListener("click", function() {
 durationInput.addEventListener("change", function() {
     clearInterval(timer);
     timer = null;
+    sessionStarted = false;
 
     let minutes = Number(durationInput.value);
     secondsRemaining = minutes * 60;
@@ -173,6 +189,31 @@ if (sessionStarted === false) {
     let studiedSeconds= plannedSeconds - secondsRemaining;
 
     console.log("Actual study time in seconds:", studiedSeconds);
+
+    if (studiedSeconds > 0) {
+    console.log("Saving partial session...");
+
+    let partialSession = {
+        subject: subjectInput.value,
+        duration: Number((studiedSeconds / 60).toFixed(2)),
+        date: dateKey,
+        status: "Partial"
+    };
+
+    console.log("Ended session:", partialSession);
+    studyHistory.push(partialSession);
+    localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+
+    let listItem = document.createElement("li");
+
+    listItem.textContent = partialSession.subject + " - " +
+    partialSession.duration + " minutes - " +
+    partialSession.status;
+
+    historyList.appendChild(listItem);
+}
+
+
 
     secondsRemaining = 0;
 
