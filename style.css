@@ -1,78 +1,257 @@
 
+
+/* General Settings */
+
+* {
+    box-sizing: border-box;
+}
+
 body {
-    background-color:#f9edf5;
+    background-color: #f9edf5;
     font-family: Arial, sans-serif;
     color: #754c75;
     margin: 0;
     padding: 30px;
 }
 
+/* Header */
+
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
 
 h1 {
-    text-align: center;
-    color:#b77ea5;
+    color: #b77ea5;
     font-size: 36px;
     margin-bottom: 10px;
 }
 
+.header p {
+    color: #94758d;
+    font-size: 16px;
+}
+
+h2, h3 {
+    color: #b77ea5;
+    margin-top: 0;
+}
+
+/* Dashboard Layout */
+
+.dashboard {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    grid-template-areas:
+        "timer progress"
+        "timer goal"
+        "timer quote"
+        "history history";
+
+    gap: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+/* Common Card Styling */
+
+.timer-card,
+.progress-card,
+.goal-card,
+.daily-quote-card,
+.history-card {
+    background-color: #fffafd;
+    padding: 25px;
+    border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(183, 126, 165, 0.15);
+    min-width: 0;
+}
+
+/* Study Timer */
 
 .timer-card {
-    background-color:  #fffafd;
-    padding: 30px;
-    border-radius: 15px;
-    max-width: 500px;
-    margin: 30px auto;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    grid-area: timer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
+.timer-card h2 {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+/* Circular Timer */
+
+.timer-circle {
+    width: 230px;
+    height: 230px;
+    max-width: 100%;
+    border: 10px solid #e8c8df;
+    border-radius: 50%;
+    background-color: #fcf2f8;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    margin: 30px auto;
+}
 
 #timerDisplay {
-    font-size: 60px;
+    font-size: 52px;
     font-weight: bold;
-    text-align: center;
     color: #b77ea5;
-    margin: 25px 0;
+    margin: 0;
 }
 
+/* Input Fields */
 
-button {
-    background-color: #eba3c0;
-    color: white;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
+label {
     font-size: 14px;
-    cursor: pointer;
-    margin: 5px;
+    font-weight: 600;
+    display: block;
+    margin-top: 10px;
 }
 
 input {
-    padding: 10px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font-size: 16px;
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e4cddd;
+    border-radius: 10px;
+    background-color: #fffcfe;
+    color: #754c75;
+    font-size: 15px;
     margin: 8px 0;
-    box-sizing: border-box;
 }
 
+input:focus {
+    outline: 2px solid #d9aeca;
+    border-color: #b77ea5;
+}
 
+/* Buttons */
+
+button {
+    background-color: #b77ea5;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
 
 button:hover {
-    background-color:#965d86;
+    background-color: #965d86;
 }
 
+.timer-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
 
+#startBtn {
+    grid-column: 1 / -1;
+    padding: 15px;
+    font-size: 16px;
+}
 
+#pauseBtn,
+#resetBtn,
+#endBtn {
+    background-color: #f0dce9;
+    color: #754c75;
+}
+
+#pauseBtn:hover,
+#resetBtn:hover,
+#endBtn:hover {
+    background-color: #e5c5da;
+}
+
+/* Today's Progress */
+
+.progress-card {
+    grid-area: progress;
+}
+
+.progress-card p {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+#totalStudyTime {
+    color: #b77ea5;
+    font-size: 20px;
+}
+
+/* Daily Study Goal */
+
+.goal-card {
+    grid-area: goal;
+}
+
+#saveGoalBtn {
+    width: 100%;
+}
+
+#goalProgress {
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 20px;
+}
+
+.progress-bar {
+    background-color: #f2dce9;
+    height: 15px;
+    border-radius: 20px;
+    overflow: hidden;
+    margin-top: 15px;
+}
+
+#progressFill {
+    background-color: #b77ea5;
+    width: 0%;
+    height: 100%;
+    border-radius: 20px;
+    transition: width 0.5s ease;
+}
+
+/* Daily Motivational Quote */
+
+.daily-quote-card {
+    grid-area: quote;
+    text-align: center;
+    background-color: #fcf2f8;
+}
+
+.daily-quote-card h2 {
+    font-size: 20px;
+}
+
+.daily-quote-card p {
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+#dailyQuote {
+    font-style: italic;
+    font-size: 18px;
+    margin: 20px 0;
+}
+
+/* Study History */
 
 .history-card {
-    background-color: #fffafd;
-    padding: 30px;
-    border-radius: 20px;
-    max-width: 500px;
-    margin: 30px auto;
-    box-shadow: 0 6px 20px rgba(183, 126, 165, 0.15);
+    grid-area: history;
 }
 
+#historyDate {
+    max-width: 250px;
+}
 
 #historyList {
     list-style: none;
@@ -86,22 +265,6 @@ button:hover {
     border-radius: 12px;
     color: #754c75;
 }
-
-
-.progress-card {
-    background-color: #f6e9f2;
-    padding: 15px 20px;
-    border-radius: 15px;
-    margin: 20px 0;
-    text-align: center;
-}
-
-.progress-card p {
-    color: #754c75;
-    font-size: 16px;
-    font-weight: 600;
-}
-
 
 /* Motivational Quote Popup */
 
@@ -118,34 +281,35 @@ button:hover {
     z-index: 1000;
 }
 
+/* Responsive Design */
 
+@media (max-width: 768px) {
 
-.daily-quote-card {
-    background-color: #fffafd;
-    padding: 25px;
-    border-radius: 20px;
-    max-width: 500px;
-    margin: 30px auto;
-    text-align: center;
-    box-shadow: 0 6px 20px rgba(183, 126, 165, 0.15);
+    body {
+        padding: 15px;
+    }
+
+    .dashboard {
+        grid-template-columns: 1fr;
+
+        grid-template-areas:
+            "timer"
+            "progress"
+            "goal"
+            "quote"
+            "history";
+    }
+
+    h1 {
+        font-size: 28px;
+    }
+
+    .timer-circle {
+        width: 200px;
+        height: 200px;
+    }
+
+    #timerDisplay {
+        font-size: 45px;
+    }
 }
-
-.daily-quote-card h2 {
-    color: #b77ea5;
-    font-size: 22px;
-}
-
-.daily-quote-card p {
-    color: #754c75;
-    font-size: 17px;
-    line-height: 1.6;
-}
-
-#dailyQuote {
-    font-style: italic;
-    font-size: 20px;
-    margin: 20px 0;
-}
-
- 
-

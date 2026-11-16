@@ -13,6 +13,10 @@ let historyList = document.getElementById("historyList");
 let sessionCount = document.getElementById("sessionCount");
 let historyDate = document.getElementById("historyDate");
 let totalStudyTime = document.getElementById("totalStudyTime");
+let weeklyTotal = document.getElementById("weeklyTotal");
+let streakDisplay = document.getElementById("streakDisplay");
+
+
 console.log(startButton);
 
 // Timer variables
@@ -30,30 +34,52 @@ let dateKey = today.getFullYear() + "-" +
 // Set date picker to today
 historyDate.value = dateKey;
 
-// Load completed sessions for today
-let storageKey = "sessions-" + dateKey;
-let completedSessions = Number(localStorage.getItem(storageKey)) || 0;
-
-sessionCount.textContent = "Completed Sessions: " + completedSessions;
-
 // Load saved study history
 let studyHistory = JSON.parse(localStorage.getItem("studyHistory")) || [];
 
 
+
+
 function calculateTotalStudyTime() {
     let totalMinutes = 0;
+    let completedCount = 0;
 
     studyHistory.forEach(function(session) {
         if (session.date === dateKey) {
             totalMinutes += session.duration;
+
+            // Only sessions without the "Partial" status count as completed
+            if (session.status !== "Partial") {
+                completedCount++;
+            }
         }
     });
 
+    sessionCount.textContent = "Completed Sessions: " + completedCount;
+
     totalStudyTime.textContent =
         "Total Studied Today: " + Number(totalMinutes.toFixed(2)) + " minutes";
+
+    // Daily Study Goal
+    
+    const dailyGoal = Number(localStorage.getItem("dailyGoal")) || 150;
+
+    const goalProgress = document.getElementById("goalProgress");
+    const progressFill = document.getElementById("progressFill");
+
+    const progressPercentage = Math.min(
+        (totalMinutes / dailyGoal) * 100,
+        100
+    );
+
+    goalProgress.textContent =
+        Number(totalMinutes.toFixed(2)) + " / " + dailyGoal + " minutes";
+
+    progressFill.style.width = progressPercentage + "%";
 }
 
 calculateTotalStudyTime();
+
 
 
 // Display one study session
@@ -78,8 +104,91 @@ function showHistoryByDate(selectedDate) {
     });
 }
 
+// Save a partial study session (used by Reset and End)
+function savePartialSession(studiedSeconds) {
+    let partialSession = {
+        subject: subjectInput.value,
+        duration: Number((studiedSeconds / 60).toFixed(2)),
+        date: dateKey,
+        status: "Partial"
+    };
+
+    console.log("Partial session saved:", partialSession);
+
+    studyHistory.push(partialSession);
+
+    localStorage.setItem(
+        "studyHistory",
+        JSON.stringify(studyHistory)
+    );
+
+    showHistoryByDate(historyDate.value);
+    calculateTotalStudyTime();
+    calculateWeeklyTotal();
+    calculateStreak();
+}
+
+// Add up the minutes of every saved session
+function calculateWeeklyTotal() {
+    let totalMinutes = 0;
+
+    let cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 6);
+
+    // Write the cutoff as "YYYY-MM-DD" text, same format as session.date
+    let cutoffKey = cutoff.getFullYear() + "-" +
+        String(cutoff.getMonth() + 1).padStart(2, "0") + "-" +
+        String(cutoff.getDate()).padStart(2, "0");
+
+    console.log("Cutoff key:", cutoffKey);
+
+    studyHistory.forEach(function(session) {
+        // Count only sessions from the cutoff day up to today
+        if (session.date >= cutoffKey && session.date <= dateKey) {
+            totalMinutes += session.duration;
+        }
+    });
+
+    weeklyTotal.textContent =
+        "Last 7 Days: " + Number(totalMinutes.toFixed(2)) + " minutes";
+}
+
+calculateWeeklyTotal();
+
+// Collect the unique days you studied (step 1 of the streak)
+function calculateStreak() {
+    let days = new Set();
+
+    studyHistory.forEach(function(session) {
+        days.add(session.date);
+    });
+
+    let streak = 0;
+    let checkDate = new Date();
+
+    // Count backward from today while each day is a study day
+    while (true) {
+        let checkKey = checkDate.getFullYear() + "-" +
+            String(checkDate.getMonth() + 1).padStart(2, "0") + "-" +
+            String(checkDate.getDate()).padStart(2, "0");
+
+        if (!days.has(checkKey)) {
+            break;
+        }
+
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    streakDisplay.textContent = "Streak: " + streak + " days";
+}
+
+calculateStreak();
+
 // Display today's history when the page loads
 showHistoryByDate(historyDate.value);
+
+
 
 // Update history when the user selects another date
 historyDate.addEventListener("change", function() {
@@ -102,6 +211,11 @@ startButton.addEventListener("click", function() {
         alert("Please enter a study subject!");
         return;
     }
+    if (Number(durationInput.value) <= 0) {
+    alert("Please enter a valid study duration!");
+    return;
+    }
+
 
     if (secondsRemaining <= 0) {
         secondsRemaining = Number(durationInput.value) * 60;
@@ -126,14 +240,6 @@ startButton.addEventListener("click", function() {
             timer = null;
             sessionStarted = false;
 
-            completedSessions++;
-            localStorage.setItem(storageKey, completedSessions);
-
-            sessionCount.textContent =
-                "Completed Sessions: " + completedSessions;
-
-            console.log("Completed sessions:", completedSessions);
-
             let studySession = {
                 subject: subject,
                 duration: Number(durationInput.value),
@@ -156,6 +262,8 @@ startButton.addEventListener("click", function() {
             // Refresh only the selected date's history
             showHistoryByDate(historyDate.value);
             calculateTotalStudyTime();
+            calculateWeeklyTotal();
+            calculateStreak();
         }
 
     }, 1000);
@@ -179,26 +287,7 @@ resetButton.addEventListener("click", function() {
     sessionStarted = false;
 
     if (shouldSave) {
-        console.log("Partial study time:", studiedSeconds);
-
-        let partialSession = {
-            subject: subjectInput.value,
-            duration: Number((studiedSeconds / 60).toFixed(2)),
-            date: dateKey,
-            status: "Partial"
-        };
-
-        console.log("Partial session:", partialSession);
-
-        studyHistory.push(partialSession);
-
-        localStorage.setItem(
-            "studyHistory",
-            JSON.stringify(studyHistory)
-        );
-
-        showHistoryByDate(historyDate.value);
-        calculateTotalStudyTime();
+        savePartialSession(studiedSeconds);
     }
 
     secondsRemaining = Number(durationInput.value) * 60;
@@ -239,27 +328,7 @@ endButton.addEventListener("click", function() {
     console.log("Actual study time in seconds:", studiedSeconds);
 
     if (studiedSeconds > 0) {
-        console.log("Saving partial session...");
-
-        let partialSession = {
-            subject: subjectInput.value,
-            duration: Number((studiedSeconds / 60).toFixed(2)),
-            date: dateKey,
-            status: "Partial"
-        };
-
-        console.log("Ended session:", partialSession);
-
-        studyHistory.push(partialSession);
-
-        localStorage.setItem(
-            "studyHistory",
-            JSON.stringify(studyHistory)
-        );
-
-        // Refresh history for the selected date
-        showHistoryByDate(historyDate.value);
-        calculateTotalStudyTime();
+        savePartialSession(studiedSeconds);
     }
 
     secondsRemaining = 0;
@@ -298,3 +367,23 @@ const quoteIndex = dayNumber % quotes.length;
 
 dailyQuote.textContent = quotes[quoteIndex];
 console.log("Daily quote element:", dailyQuote);
+
+
+const dailyGoalInput = document.getElementById("dailyGoalInput");
+const saveGoalBtn = document.getElementById("saveGoalBtn");
+
+// Display the previously saved goal
+dailyGoalInput.value = localStorage.getItem("dailyGoal") || 150;
+
+saveGoalBtn.addEventListener("click", function() {
+    const newGoal = Number(dailyGoalInput.value);
+
+    if (newGoal <= 0 || !Number.isFinite(newGoal)) {
+        alert("Please enter a valid study goal.");
+        return;
+    }
+
+    localStorage.setItem("dailyGoal", newGoal);
+
+    calculateTotalStudyTime();
+});
