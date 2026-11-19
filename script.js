@@ -116,6 +116,7 @@ function savePartialSession(studiedSeconds) {
     console.log("Partial session saved:", partialSession);
 
     studyHistory.push(partialSession);
+    sendSessionToServer(partialSession);
 
     localStorage.setItem(
         "studyHistory",
@@ -197,6 +198,15 @@ historyDate.addEventListener("change", function() {
 
 console.log("Today's date:", dateKey);
 
+function sendSessionToServer(session) {
+    fetch("http://localhost:5000/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(session)
+    });
+}
+
+
 // START BUTTON
 startButton.addEventListener("click", function() {
 
@@ -250,6 +260,7 @@ startButton.addEventListener("click", function() {
             console.log("Study session completed!");
 
             studyHistory.push(studySession);
+            sendSessionToServer(studySession);
 
             console.log("Study history:", studyHistory);
 
@@ -387,3 +398,8 @@ saveGoalBtn.addEventListener("click", function() {
 
     calculateTotalStudyTime();
 });
+
+
+fetch("http://localhost:5000/sessions")
+    .then(function(response) { return response.json(); })
+    .then(function(data) { console.log("From server:", data); });
