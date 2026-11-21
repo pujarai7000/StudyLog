@@ -2,10 +2,14 @@
 from flask import Flask, jsonify, request
 
 app = Flask(__name__)
+import os
 import sqlite3
 
+# Always keep the database next to app.py, no matter where the server is started from
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "studylog.db")
+
 def init_db():
-    conn = sqlite3.connect("studylog.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,9 +24,18 @@ def init_db():
 
 init_db()
 
+
+@app.after_request
+def add_cors_headers(response):
+    # Allow the HTML page (opened from a file or another port) to call this API
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    return response
+
 @app.route("/sessions")
 def get_sessions():
-    conn = sqlite3.connect("studylog.db")
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("SELECT * FROM sessions").fetchall()
     conn.close()
@@ -34,20 +47,36 @@ def get_sessions():
 def add_session():
     new_session = request.get_json()
 
-    conn = sqlite3.connect("studylog.db")
-    conn.execute(
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.execute(
         "INSERT INTO sessions (subject, duration, date, status) VALUES (?, ?, ?, ?)",
         (
             new_session["subject"],
             new_session["duration"],
             new_session["date"],
-            new_session.get("status")
+            new_session.get("status") or "Completed"
         )
     )
     conn.commit()
+    # The database gave this row an id; send it back so the page can delete it later
+    new_session["id"] = cursor.lastrowid
     conn.close()
 
     return jsonify(new_session), 201
+
+
+@app.route("/sessions/<int:session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    deleted = cursor.rowcount
+    conn.close()
+
+    if deleted == 0:
+        return jsonify({"error": "Session not found"}), 404
+
+    return jsonify({"deleted": session_id})
 
 
 if __name__ == "__main__":
