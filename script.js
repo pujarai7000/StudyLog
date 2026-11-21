@@ -15,6 +15,7 @@ let historyDate = document.getElementById("historyDate");
 let totalStudyTime = document.getElementById("totalStudyTime");
 let weeklyTotal = document.getElementById("weeklyTotal");
 let streakDisplay = document.getElementById("streakDisplay");
+let subjectTotals =document.getElementById("subjectTotals");
 
 
 console.log(startButton);
@@ -90,7 +91,43 @@ function displaySession(session) {
         session.duration + " minutes - " +
         (session.status || "Completed");
 
+    // Only sessions that exist in the database (have an id) can be deleted
+    if (session.id) {
+        let deleteButton = document.createElement("button");
+        deleteButton.textContent = "Delete";
+        deleteButton.className = "delete-btn";
+
+        deleteButton.addEventListener("click", function() {
+            deleteSession(session.id);
+        });
+
+        listItem.appendChild(deleteButton);
+    }
+
     historyList.appendChild(listItem);
+}
+
+// Delete a session from the server, then from the page
+function deleteSession(id) {
+    if (!confirm("Delete this session?")) {
+        return;
+    }
+
+    fetch("http://localhost:5000/sessions/" + id, { method: "DELETE" })
+        .then(function(response) {
+            if (!response.ok) {
+                alert("Could not delete the session.");
+                return;
+            }
+
+            // Keep every session except the one we deleted
+            studyHistory = studyHistory.filter(function(session) {
+                return session.id !== id;
+            });
+
+            localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+            refreshAll();
+        });
 }
 
 // Display sessions for the selected date
@@ -127,6 +164,8 @@ function savePartialSession(studiedSeconds) {
     calculateTotalStudyTime();
     calculateWeeklyTotal();
     calculateStreak();
+    calculateSubjectTotals();
+    renderHeatmap();
 }
 
 // Add up the minutes of every saved session
@@ -186,6 +225,90 @@ function calculateStreak() {
 
 calculateStreak();
 
+// Add up minutes for each subject and show them in the list
+function calculateSubjectTotals() {
+    let totals = {};
+
+    studyHistory.forEach(function(session) {
+        // "Math " and "math" should count as the same subject
+        let key = session.subject.trim().toLowerCase();
+
+        // First time we see a subject, start it at 0 (avoids undefined + number = NaN)
+        totals[key] = (totals[key] || 0) + session.duration;
+    });
+
+    subjectTotals.innerHTML = "";
+
+    Object.entries(totals).forEach(function(entry) {
+        // Show the subject with a capital first letter, e.g. "math" -> "Math"
+        let subject = entry[0].charAt(0).toUpperCase() + entry[0].slice(1);
+        let minutes = entry[1];
+
+        let listItem = document.createElement("li");
+        listItem.textContent = subject + ": " + Number(minutes.toFixed(2)) + " minutes";
+        subjectTotals.appendChild(listItem);
+    });
+}
+
+calculateSubjectTotals();
+
+
+// Heatmap: one square per day for the last 20 weeks, shaded by minutes studied
+const HEATMAP_WEEKS = 20;
+
+function dateToKey(d) {
+    return d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0");
+}
+
+function heatLevel(minutes) {
+    if (minutes <= 0) return 0;
+    if (minutes < 30) return 1;
+    if (minutes < 60) return 2;
+    if (minutes < 120) return 3;
+    return 4;
+}
+
+function renderHeatmap() {
+    const grid = document.getElementById("heatmapGrid");
+    grid.innerHTML = "";
+
+    // Total minutes per day
+    const minutesByDay = {};
+    studyHistory.forEach(function(session) {
+        minutesByDay[session.date] =
+            (minutesByDay[session.date] || 0) + session.duration;
+    });
+
+    // Start on the Sunday (HEATMAP_WEEKS - 1) weeks before this week's Sunday
+    const start = new Date();
+    start.setDate(start.getDate() - start.getDay() - (HEATMAP_WEEKS - 1) * 7);
+
+    const todayKey = dateToKey(new Date());
+
+    for (let i = 0; i < HEATMAP_WEEKS * 7; i++) {
+        const day = new Date(start);
+        day.setDate(start.getDate() + i);
+        const key = dateToKey(day);
+
+        const cell = document.createElement("div");
+        cell.className = "heat-cell";
+
+        if (key > todayKey) {
+            cell.classList.add("future");
+        } else {
+            const minutes = minutesByDay[key] || 0;
+            cell.classList.add("level-" + heatLevel(minutes));
+            cell.title = key + ": " + Number(minutes.toFixed(2)) + " minutes";
+        }
+
+        grid.appendChild(cell);
+    }
+}
+
+renderHeatmap();
+
 // Display today's history when the page loads
 showHistoryByDate(historyDate.value);
 
@@ -203,7 +326,14 @@ function sendSessionToServer(session) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(session)
-    });
+    })
+        .then(function(response) { return response.json(); })
+        .then(function(saved) {
+            // Remember the database id so this session can be deleted right away
+            session.id = saved.id;
+            localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+            showHistoryByDate(historyDate.value);
+        });
 }
 
 
@@ -253,7 +383,8 @@ startButton.addEventListener("click", function() {
             let studySession = {
                 subject: subject,
                 duration: Number(durationInput.value),
-                date: dateKey
+                date: dateKey,
+                status: "Completed"
             };
 
             console.log("Session details:", studySession);
@@ -275,6 +406,8 @@ startButton.addEventListener("click", function() {
             calculateTotalStudyTime();
             calculateWeeklyTotal();
             calculateStreak();
+            calculateSubjectTotals();
+            renderHeatmap();
         }
 
     }, 1000);
@@ -400,6 +533,29 @@ saveGoalBtn.addEventListener("click", function() {
 });
 
 
+function refreshAll() {
+    showHistoryByDate(historyDate.value);
+    calculateTotalStudyTime();
+    calculateWeeklyTotal();
+    calculateStreak();
+    calculateSubjectTotals();
+    renderHeatmap();
+}
+
+// Load history from the server (falls back to localStorage if it's offline)
 fetch("http://localhost:5000/sessions")
     .then(function(response) { return response.json(); })
-    .then(function(data) { console.log("From server:", data); });
+    .then(function(data) {
+        if (data.length === 0 && studyHistory.length > 0) {
+            // One-time migration: upload sessions saved before the backend existed
+            studyHistory.forEach(sendSessionToServer);
+            return;
+        }
+
+        studyHistory = data;
+        localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+        refreshAll();
+    })
+    .catch(function(error) {
+        console.log("Server unavailable, using localStorage:", error);
+    });
