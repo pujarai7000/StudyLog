@@ -24,6 +24,9 @@ console.log(startButton);
 let secondsRemaining = 0;
 let timer = null;
 let sessionStarted = false;
+let endTime = null;
+let plannedSeconds = 0;    // length of the current session, saved when it starts
+let sessionSubject = "";   // subject of the current session, saved when it starts
 
 // Today's date
 let today = new Date();
@@ -127,6 +130,11 @@ function deleteSession(id) {
 
             localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
             refreshAll();
+        })
+        .catch(function(error) {
+            // Network problem: nothing was removed, the session stays in the list
+            console.log("Delete failed:", error);
+            alert("Could not reach the server, so the session was not deleted. Please try again.");
         });
 }
 
@@ -144,7 +152,8 @@ function showHistoryByDate(selectedDate) {
 // Save a partial study session (used by Reset and End)
 function savePartialSession(studiedSeconds) {
     let partialSession = {
-        subject: subjectInput.value,
+        clientId: newClientId(),
+        subject: sessionSubject,
         duration: Number((studiedSeconds / 60).toFixed(2)),
         date: dateKey,
         status: "Partial"
@@ -321,18 +330,44 @@ historyDate.addEventListener("change", function() {
 
 console.log("Today's date:", dateKey);
 
+// A permanent, unique label for a session (the server uses it to spot duplicates)
+function newClientId() {
+    if (window.crypto && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+}
+
+// Send one session to Flask. Returns a promise that gives true (saved) or false (failed).
 function sendSessionToServer(session) {
-    fetch("http://localhost:5000/sessions", {
+    return fetch("http://localhost:5000/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(session)
+        body: JSON.stringify({
+            client_id: session.clientId,
+            subject: session.subject,
+            duration: session.duration,
+            date: session.date,
+            status: session.status
+        })
     })
-        .then(function(response) { return response.json(); })
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error("Server answered " + response.status);
+            }
+            return response.json();
+        })
         .then(function(saved) {
             // Remember the database id so this session can be deleted right away
             session.id = saved.id;
             localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
             showHistoryByDate(historyDate.value);
+            return true;
+        })
+        .catch(function(error) {
+            // Not synced yet: it stays in localStorage without an id and is retried on the next page load
+            console.log("Could not sync session, will retry later:", error);
+            return false;
         });
 }
 
@@ -361,10 +396,22 @@ startButton.addEventListener("click", function() {
         secondsRemaining = Number(durationInput.value) * 60;
     }
 
+    // A brand-new session (not a resume after Pause): remember its length and subject
+    if (sessionStarted === false) {
+        plannedSeconds = secondsRemaining;
+        sessionSubject = subject;
+    }
+
     sessionStarted = true;
 
+    // Calculate when the timer should finish
+    endTime = Date.now() + secondsRemaining * 1000;
+
     timer = setInterval(function() {
-        secondsRemaining--;
+        secondsRemaining = Math.max(
+            0,
+            Math.ceil((endTime - Date.now()) / 1000)
+        );
 
         console.log(secondsRemaining);
 
@@ -381,8 +428,9 @@ startButton.addEventListener("click", function() {
             sessionStarted = false;
 
             let studySession = {
-                subject: subject,
-                duration: Number(durationInput.value),
+                clientId: newClientId(),
+                subject: sessionSubject,
+                duration: Number((plannedSeconds / 60).toFixed(2)),
                 date: dateKey,
                 status: "Completed"
             };
@@ -415,16 +463,34 @@ startButton.addEventListener("click", function() {
 
 // PAUSE BUTTON
 pauseButton.addEventListener("click", function() {
+    if (timer === null) {
+        return;
+    }
+
     clearInterval(timer);
     timer = null;
+
+    secondsRemaining = Math.max(
+        0,
+        Math.ceil((endTime - Date.now()) / 1000)
+    );
+
+    endTime = null;
 });
 
 // RESET BUTTON
 resetButton.addEventListener("click", function() {
+    if (timer !== null && endTime !== null) {
+        secondsRemaining = Math.max(
+            0,
+            Math.ceil((endTime - Date.now()) / 1000)
+        );
+    }
+
     clearInterval(timer);
     timer = null;
+    endTime = null;
 
-    let plannedSeconds = Number(durationInput.value) * 60;
     let studiedSeconds = plannedSeconds - secondsRemaining;
     let shouldSave = sessionStarted && studiedSeconds > 0;
 
@@ -444,8 +510,16 @@ resetButton.addEventListener("click", function() {
 
 // CHANGE STUDY DURATION
 durationInput.addEventListener("change", function() {
+    // Don't allow a change while a session is running or paused
+    if (sessionStarted) {
+        alert("Reset or end the session before changing the duration.");
+        durationInput.value = Number((plannedSeconds / 60).toFixed(2));
+        return;
+    }
+
     clearInterval(timer);
     timer = null;
+    endTime = null;
     sessionStarted = false;
 
     let minutes = Number(durationInput.value);
@@ -462,11 +536,18 @@ endButton.addEventListener("click", function() {
         return;
     }
 
+    if (timer !== null && endTime !== null) {
+        secondsRemaining = Math.max(
+            0,
+            Math.ceil((endTime - Date.now()) / 1000)
+        );
+    }
+
     clearInterval(timer);
     timer = null;
+    endTime = null;
     sessionStarted = false;
 
-    let plannedSeconds = Number(durationInput.value) * 60;
     let studiedSeconds = plannedSeconds - secondsRemaining;
 
     console.log("Actual study time in seconds:", studiedSeconds);
@@ -478,6 +559,14 @@ endButton.addEventListener("click", function() {
     secondsRemaining = 0;
 
     console.log("Study session ended!");
+});
+
+// Warn before leaving the page while a session is running or paused
+window.addEventListener("beforeunload", function(event) {
+    if (sessionStarted) {
+        event.preventDefault();
+        event.returnValue = "";   // some browsers need this to show the warning
+    }
 });
 
 
@@ -542,20 +631,69 @@ function refreshAll() {
     renderHeatmap();
 }
 
-// Load history from the server (falls back to localStorage if it's offline)
-fetch("http://localhost:5000/sessions")
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.length === 0 && studyHistory.length > 0) {
-            // One-time migration: upload sessions saved before the backend existed
-            studyHistory.forEach(sendSessionToServer);
-            return;
+function getServerSessions() {
+    return fetch("http://localhost:5000/sessions").then(function(response) {
+        if (!response.ok) {
+            throw new Error("Server answered " + response.status);
         }
-
-        studyHistory = data;
-        localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
-        refreshAll();
-    })
-    .catch(function(error) {
-        console.log("Server unavailable, using localStorage:", error);
+        return response.json();
     });
+}
+
+// Sync with the server: upload unsynced local sessions, then load the server's list
+function syncWithServer() {
+    // Step 1: make sure every local session has a permanent clientId, and save that first
+    // (so a second tab or a reload reuses the same ids instead of creating new ones)
+    studyHistory.forEach(function(session) {
+        if (!session.clientId) {
+            session.clientId = newClientId();
+        }
+    });
+    localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+
+    getServerSessions()
+        .then(function(serverSessions) {
+            // Step 2: decide what to upload
+            // Only sessions with no database id (they never reached the server).
+            // Sessions that already have an id are never re-uploaded, so a session
+            // deleted from the server can't come back.
+            let toUpload = studyHistory.filter(function(session) {
+                return !session.id;
+            });
+
+            if (toUpload.length === 0) {
+                return serverSessions;
+            }
+
+            toUpload.forEach(function(session) {
+                delete session.id;
+            });
+
+            // Step 3: upload them all, wait, then ask the server for its final list
+            return Promise.all(toUpload.map(sendSessionToServer))
+                .then(function(results) {
+                    let failed = toUpload.filter(function(session, i) {
+                        return !results[i];
+                    });
+
+                    return getServerSessions().then(function(finalList) {
+                        // Keep sessions that still couldn't be uploaded
+                        return finalList.concat(failed);
+                    });
+                });
+        })
+        .then(function(finalHistory) {
+            studyHistory = finalHistory.map(function(session) {
+                // Old rows from before client_id existed have none; give them a local one
+                session.clientId = session.clientId || session.client_id || newClientId();
+                return session;
+            });
+            localStorage.setItem("studyHistory", JSON.stringify(studyHistory));
+            refreshAll();
+        })
+        .catch(function(error) {
+            console.log("Server unavailable, using localStorage:", error);
+        });
+}
+
+syncWithServer();
