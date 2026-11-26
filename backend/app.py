@@ -19,6 +19,18 @@ def init_db():
             status TEXT
         )
     """)
+
+    # Older databases don't have client_id yet, so add it once
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(sessions)")]
+    if "client_id" not in columns:
+        conn.execute("ALTER TABLE sessions ADD COLUMN client_id TEXT")
+
+    # The database itself refuses two rows with the same client_id
+    # (old rows with no client_id are allowed; NULLs don't count as equal)
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_client_id "
+        "ON sessions(client_id)"
+    )
     conn.commit()
     conn.close()
 
@@ -46,20 +58,44 @@ def get_sessions():
 @app.route("/sessions", methods=["POST"])
 def add_session():
     new_session = request.get_json()
+    client_id = new_session.get("client_id")
 
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.execute(
-        "INSERT INTO sessions (subject, duration, date, status) VALUES (?, ?, ?, ?)",
-        (
-            new_session["subject"],
-            new_session["duration"],
-            new_session["date"],
-            new_session.get("status") or "Completed"
+
+    # Already saved this session before? Return the existing row instead of a copy
+    if client_id:
+        existing = conn.execute(
+            "SELECT id FROM sessions WHERE client_id = ?", (client_id,)
+        ).fetchone()
+        if existing:
+            conn.close()
+            new_session["id"] = existing[0]
+            return jsonify(new_session), 200
+
+    try:
+        cursor = conn.execute(
+            "INSERT INTO sessions (subject, duration, date, status, client_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                new_session["subject"],
+                new_session["duration"],
+                new_session["date"],
+                new_session.get("status") or "Completed",
+                client_id
+            )
         )
-    )
-    conn.commit()
-    # The database gave this row an id; send it back so the page can delete it later
-    new_session["id"] = cursor.lastrowid
+        conn.commit()
+        # The database gave this row an id; send it back so the page can delete it later
+        new_session["id"] = cursor.lastrowid
+    except sqlite3.IntegrityError:
+        # Two requests with the same client_id arrived at once; keep the first one
+        existing = conn.execute(
+            "SELECT id FROM sessions WHERE client_id = ?", (client_id,)
+        ).fetchone()
+        new_session["id"] = existing[0]
+        conn.close()
+        return jsonify(new_session), 200
+
     conn.close()
 
     return jsonify(new_session), 201
